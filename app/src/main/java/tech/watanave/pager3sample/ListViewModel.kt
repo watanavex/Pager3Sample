@@ -33,13 +33,28 @@ class ListPagingSource: PagingSource<Int, String>() {
         return withContext(Dispatchers.IO) {
             // ページは0開始
             val page = params.key ?: 0
-            val start = page * params.loadSize
-            val end = start + params.loadSize
+
+            val start: Int
+            val end: Int
+            val prevKey: Int
+            val nextKey: Int
+
+            // スクロール位置上部以外でFABをタップされたか
+            if (params is LoadParams.Refresh && page > 0) {
+                // ページ 3つ分を読む
+                start = (page * params.loadSize) - params.loadSize
+                end = start + (params.loadSize * 3)
+                prevKey = page - 2
+                nextKey = page + 2
+            } else {
+                start = page * params.loadSize
+                end = start + params.loadSize
+                prevKey = page - 1
+                nextKey = page + 1
+            }
 
             delay(1500)
 
-            val prevKey = page - 1
-            val nextKey = page + 1
             return@withContext LoadResult.Page(
                 data = (start until end)
                     .map { it.toString() }
@@ -54,7 +69,15 @@ class ListPagingSource: PagingSource<Int, String>() {
         val anchorPosition = state.anchorPosition ?: return null
         val pages = state.closestPageToPosition(anchorPosition) ?: return null
 
-        pages.nextKey?.let { return it - 1 }
+        val offset: Int
+        // スクロール位置上部以外でFABをタップされたページか
+        if (pages.data.count() != state.config.pageSize) {
+            offset = 2
+        } else {
+            offset = 1
+        }
+        pages.prevKey?.let { return it + offset }
+        pages.nextKey?.let { return it - offset }
 
         return null
     }
